@@ -1,0 +1,3 @@
+
+class DnsproxError(Exception):
+    pass

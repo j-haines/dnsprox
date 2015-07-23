@@ -6,6 +6,7 @@ import argparse
 import threading
 
 from config import DefaultConfig
+from rules import RulesManager
 from server import DNSServer
 
 
@@ -13,55 +14,89 @@ def parse_args():
     default = DefaultConfig()
 
     p = argparse.ArgumentParser(description="Intercept and spoof DNS requests")
-    p.add_argument('records', metavar='N', nargs='+',
-            help='records to spoof')
+    p.add_argument('records',
+                   metavar='N',
+                   nargs='*',
+                   help='records to spoof')
     p.add_argument('-d', '--dnsserver',
-            dest='dns_server', default=default.dns_server,
-            help='default DNS server. default: {}'.format(default.dns_server))
+                   dest='dns_server',
+                   default=default.dns_server,
+                   help='default DNS server. default: ' + default.dns_server)
     p.add_argument('-P', '--dnsport',
-            dest='dns_port', default=default.dns_port, type=int,
-            help='default DNS port. default: {}'.format(default.dns_port))
+                   dest='dns_port',
+                   default=default.dns_port,
+                   type=int,
+                   help='default DNS port. default: ' + str(default.dns_port))
     p.add_argument('-b', '--bindaddr',
-            dest='bind_addr', default=default.bind_addr,
-            help='address to bind to. default: {}'.format(default.bind_addr))
+                   dest='bind_addr',
+                   default=default.bind_addr,
+                   help='address to bind to. default: ' + default.bind_addr)
     p.add_argument('-p', '--port',
-            dest='bind_port', default=default.bind_port, type=int,
-            help='port to bind to. default: {}'.format(default.bind_port))
+                   dest='bind_port',
+                   default=default.bind_port,
+                   type=int,
+                   help='port to bind to. default: ' + str(default.bind_port))
     p.add_argument('-t', '--ttl',
-            dest='ttl', default=default.ttl, type=int,
-            help='TTL for response. default: {}s'.format(default.ttl))
-    p.add_argument('-q', '--quiet', dest='quiet', action='store_true',
-            help='suppress output')
-    p.add_argument('-6', '--ipv6', action='store_true',
-            help='use IPv6 server socket')
-    p.add_argument('-r', '--rules', dest='rules_file',
-            help='file to read rules from')
+                   dest='ttl',
+                   default=default.ttl,
+                   type=int,
+                   help='TTL for response. default: {}s'.format(default.ttl))
+    p.add_argument('-q', '--quiet',
+                   dest='quiet',
+                   action='store_true',
+                   help='suppress output')
+    p.add_argument('-6', '--ipv6',
+                   dest='use_ipv6',
+                   action='store_true',
+                   help='use IPv6 server socket')
+    p.add_argument('-r', '--rules',
+                   dest='rules_file',
+                   help='file to read rules from')
 
     return p.parse_args()
+
 
 def setup_signal_handlers():
     signal.signal(signal.SIGINT, handle_sigint)
 
+
 def handle_sigint(signal, frame):
-    print ('[-] Exiting...')
+    print('[-] Exiting...')
     sys.exit(0)
 
+
 def main():
-    args = parse_args()
+    multithreaded = False
+    opts = parse_args()
 
     setup_signal_handlers()
 
+    rules = opts.records or []
+
+    if opts.rules_file:
+        with open(opts.rules_file, 'r') as f:
+            rules.extend([l.strip() for l in f.readlines()])
+
+    if not rules:
+        print('[e] could not load any rules -- exiting')
+        sys.exit(0)
+
+    RulesManager.load_rules(rules)
+
     try:
-        server = DNSServer((args.bind_addr, args.bind_port), args.ipv6)
+        server = DNSServer(opts)
     except OSError as e:
-        sys.exit('[!] could not start server -- {0}'.format(e))
+        sys.exit('[e] could not start server -- {0}'.format(e))
 
-    server_thread = threading.Thread(target=server.serve_forever)
+    if multithreaded:
+        server_thread = threading.Thread(target=server.serve_forever)
 
-    server_thread.daemon = True
-    server_thread.start()
+        server_thread.daemon = True
+        server_thread.start()
 
-    server_thread.join()
+        server_thread.join()
+    else:
+        server.serve_forever()
 
 if __name__ == '__main__':
     main()
