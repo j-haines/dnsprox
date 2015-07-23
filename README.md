@@ -18,11 +18,8 @@ Start the server:
 Query the server:
 
     $ dig @localhost -p 1053 www.google.com +short
-
     1.2.3.4
 
     $ dig @localhost -p 1053 www.facebook.com +short
-
     star.c10r.facebook.com.
-
     31.13.74.1
