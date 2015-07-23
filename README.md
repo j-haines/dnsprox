@@ -9,11 +9,13 @@ dnsprox is a small DNS server with the express intent of intercepting and modify
 ## Usage
 
 *	Start the server
+
 ``
 $ ./dnsprox -p 1053 "*.google.com IN A 1.2.3.4"
 ``
 
 *	Query the server
+
 ``
 $ dig @localhost -p 1053 www.google.com +short
 1.2.3.4
